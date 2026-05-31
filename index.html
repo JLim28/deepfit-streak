@@ -298,12 +298,13 @@
   // Listen for streak data from Wix
   window.addEventListener('message', function(e) {
     if (e.data && e.data.type === 'DEEPFIT_INIT') {
-      // Stop retrying
       if (readyInterval) { clearInterval(readyInterval); readyInterval = null; }
       initReceived = true;
       streak = e.data.streak || 0;
       checkedIn = e.data.checkedIn || false;
       renderUI();
+      // Confirm receipt back to Wix so it stops retrying
+      window.parent.postMessage({ type: 'DEEPFIT_CONFIRMED' }, '*');
     }
   });
 
