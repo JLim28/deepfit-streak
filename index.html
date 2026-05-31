@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>DEEPFIT Streak</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: transparent;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    min-height: 100vh;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+  @keyframes flameWiggle {
+    0%,100% { transform: scale(1) rotate(-3deg); }
+    25% { transform: scale(1.1) rotate(3deg); }
+    50% { transform: scale(1.15) rotate(-2deg); }
+    75% { transform: scale(1.05) rotate(3deg); }
+  }
+  @keyframes flamePulse {
+    0%,100% { filter: drop-shadow(0 0 6px rgba(180,30,30,0.7)); }
+    50% { filter: drop-shadow(0 0 18px rgba(220,50,30,0.95)); }
+  }
+  @keyframes burst {
+    0% { transform: scale(0); opacity: 1; }
+    100% { transform: scale(2.8); opacity: 0; }
+  }
+  @keyframes particleFly {
+    0% { transform: translate(0,0) scale(1); opacity: 1; }
+    100% { transform: translate(var(--tx),var(--ty)) scale(0); opacity: 0; }
+  }
+  @keyframes barFill { from { width: 0%; } }
+  @keyframes popIn {
+    0% { transform: scale(0.5); opacity: 0; }
+    70% { transform: scale(1.2); opacity: 1; }
+    100% { transform: scale(1); }
+  }
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .df {
+    width: 400px;
+    height: 300px;
+    background: #111;
+    border: 0.5px solid #2a2a2a;
+    border-radius: 16px;
+    overflow: hidden;
+    position: relative;
+    display: grid;
+    grid-template-rows: auto 1fr auto;
+    margin-top: 16px;
+  }
+  .df::before {
+    content: '';
+    position: absolute;
+    top: -30px; left: 50%;
+    transform: translateX(-50%);
+    width: 220px; height: 220px;
+    background: radial-gradient(circle, rgba(160,20,20,0.18) 0%, transparent 70%);
+    pointer-events: none;
+    z-index: 0;
+  }
+  .top-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 18px 24px 0;
+    position: relative;
+    z-index: 1;
+  }
+  .brand { font-size: 9px; letter-spacing: 0.22em; color: #555; text-transform: uppercase; font-weight: 500; }
+  .streak-badge { display: flex; align-items: baseline; gap: 5px; }
+  .streak-badge .num {
+    font-size: 38px; font-weight: 500; line-height: 1;
+    background: linear-gradient(170deg, #fff 30%, #C0292A 100%);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+    animation: fadeUp 0.4s ease both;
+  }
+  .streak-badge .unit { font-size: 12px; color: #666; text-transform: uppercase; letter-spacing: 0.06em; }
+  .mid {
+    display: flex; align-items: center; justify-content: center;
+    gap: 20px; position: relative; z-index: 1; padding: 0 24px;
+  }
+  .flame-wrap { position: relative; cursor: pointer; flex-shrink: 0; }
+  .flame-icon {
+    font-size: 76px; line-height: 1; display: block;
+    animation: flameWiggle 2.4s ease-in-out infinite, flamePulse 2.4s ease-in-out infinite;
+    transform-origin: bottom center; user-select: none;
+  }
+  .flame-icon.fast { animation: flameWiggle 0.35s ease-in-out infinite, flamePulse 0.35s ease-in-out infinite; }
+  .burst-ring {
+    position: absolute; top: 50%; left: 50%;
+    width: 60px; height: 60px; margin: -30px 0 0 -30px;
+    border-radius: 50%; border: 2px solid #C0292A; opacity: 0; pointer-events: none;
+  }
+  .burst-ring.go { animation: burst 0.5s ease-out forwards; }
+  .particle {
+    position: absolute; width: 5px; height: 5px; border-radius: 50%;
+    top: 50%; left: 50%; margin: -2.5px 0 0 -2.5px; opacity: 0; pointer-events: none;
+  }
+  .particle.go { animation: particleFly 0.55s ease-out forwards; }
+  .right-col { display: flex; flex-direction: column; gap: 10px; flex: 1; }
+  .days-row { display: flex; justify-content: space-between; gap: 4px; }
+  .day-dot { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+  .day-dot span { font-size: 9px; color: #555; text-transform: uppercase; letter-spacing: 0.05em; }
+  .dot {
+    width: 30px; height: 30px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; background: #1e1e1e; border: 0.5px solid #2d2d2d; color: #444;
+  }
+  .dot.done { background: #8B1A1A; border-color: #C0292A; color: #fff; }
+  .dot.today { background: #C0292A; border-color: #E03535; color: #fff; box-shadow: 0 0 0 3px rgba(192,41,42,0.22); }
+  .dot.today.pop { animation: popIn 0.4s ease both; }
+  .bar-wrap { display: flex; flex-direction: column; gap: 5px; }
+  .bar-meta { display: flex; justify-content: space-between; font-size: 11px; }
+  .bar-meta .bl { color: #555; }
+  .bar-meta .br { color: #C0292A; }
+  .bar-bg { background: #1e1e1e; border-radius: 99px; height: 6px; overflow: hidden; border: 0.5px solid #2a2a2a; }
+  .bar-fill { height: 100%; border-radius: 99px; background: linear-gradient(90deg, #8B1A1A, #C0292A, #E03535); animation: barFill 1.2s ease both; }
+  .msg { font-size: 11px; color: #C0292A; font-weight: 500; letter-spacing: 0.03em; line-height: 1.4; }
+  .bottom {
+    padding: 0 24px 18px;
+    display: flex; flex-direction: column; gap: 9px;
+    position: relative; z-index: 1;
+  }
+  .milestone-row { display: flex; justify-content: center; gap: 6px; }
+  .ms { font-size: 11px; padding: 3px 12px; border-radius: 99px; border: 0.5px solid #2a2a2a; color: #555; background: #1a1a1a; }
+  .ms.achieved { border-color: #8B1A1A; color: #C0292A; background: rgba(192,41,42,0.1); }
+  .checkin-btn {
+    width: 100%; padding: 10px 0; border-radius: 8px;
+    background: linear-gradient(135deg, #8B1A1A, #C0292A);
+    color: #fff; font-size: 12px; font-weight: 500; border: none;
+    cursor: pointer; letter-spacing: 0.09em; text-transform: uppercase;
+    transition: opacity 0.15s, transform 0.1s;
+  }
+  .checkin-btn:hover { opacity: 0.85; transform: scale(0.99); }
+  .checkin-btn:disabled { background: #222; color: #444; cursor: default; transform: none; }
+</style>
+</head>
+<body>
+<div class="df">
+  <div class="top-row">
+    <span class="brand">DEEPFIT</span>
+    <div class="streak-badge">
+      <span class="num" id="streakNum">0</span>
+      <span class="unit">day streak</span>
+    </div>
+  </div>
+  <div class="mid">
+    <div class="flame-wrap" id="flameWrap" onclick="doCheckin()">
+      <span class="flame-icon" id="flameIcon">🔥</span>
+      <div class="burst-ring" id="burstRing"></div>
+    </div>
+    <div class="right-col">
+      <div class="days-row" id="daysRow"></div>
+      <div class="bar-wrap">
+        <div class="bar-meta">
+          <span class="bl">Progress</span>
+          <span class="br" id="nextLabel">7-day goal</span>
+        </div>
+        <div class="bar-bg"><div class="bar-fill" id="barFill" style="width:0%"></div></div>
+      </div>
+      <p class="msg" id="msg">Log in every day to build your streak.</p>
+    </div>
+  </div>
+  <div class="bottom">
+    <div class="milestone-row" id="msRow"></div>
+    <button class="checkin-btn" id="btn" onclick="doCheckin()">Check in today</button>
+  </div>
+</div>
+
+<script>
+  window.parent.postMessage({ type: 'IFRAME_READY' }, '*');
+
+  const params = new URLSearchParams(window.location.search);
+  let streak = parseInt(params.get('streak') || '0', 10);
+  let checkedIn = params.get('checkedIn') === 'true';
+  const milestones = [7, 14, 30, 60];
+  const msgs = [
+    "Log in every day to build your streak.",
+    "Every rep counts. Every day counts.",
+    "Consistency is the real transformation.",
+    "No days off from progress.",
+    "Beast mode: activated. 💪",
+    "You're on fire — keep showing up."
+  ];
+
+  function getNext() { return milestones.find(m => m > streak) || milestones[milestones.length-1]; }
+
+  function buildDots() {
+    const row = document.getElementById('daysRow'); row.innerHTML = '';
+    const days = ['M','T','W','T','F','S','S'];
+    const todayIdx = new Date().getDay() === 0 ? 6 : new Date().getDay() - 1;
+    days.forEach((d, i) => {
+      const w = document.createElement('div'); w.className = 'day-dot';
+      const dot = document.createElement('div');
+      const isToday = i === todayIdx, hit = i >= (todayIdx - streak + 1) && i < todayIdx;
+      dot.className = 'dot' + (isToday ? ' today' : hit ? ' done' : '');
+      dot.textContent = isToday ? '🔥' : hit ? '✓' : '';
+      if (isToday) setTimeout(() => dot.classList.add('pop'), 300);
+      const lbl = document.createElement('span'); lbl.textContent = d;
+      w.appendChild(dot); w.appendChild(lbl); row.appendChild(w);
+    });
+  }
+
+  function buildMs() {
+    const row = document.getElementById('msRow'); row.innerHTML = '';
+    milestones.forEach(m => {
+      const el = document.createElement('div');
+      el.className = 'ms' + (streak >= m ? ' achieved' : '');
+      el.textContent = m + ' days';
+      row.appendChild(el);
+    });
+  }
+
+  function updateBar() {
+    const next = getNext();
+    document.getElementById('barFill').style.width = Math.min((streak/next)*100, 100) + '%';
+    document.getElementById('nextLabel').textContent = next + '-day goal';
+  }
+
+  function spawnParticles() {
+    const wrap = document.getElementById('flameWrap');
+    for (let i = 0; i < 8; i++) {
+      const p = document.createElement('div'); p.className = 'particle';
+      const angle = (i/8)*360, dist = 40 + Math.random()*20;
+      p.style.setProperty('--tx', Math.cos(angle*Math.PI/180)*dist+'px');
+      p.style.setProperty('--ty', Math.sin(angle*Math.PI/180)*dist+'px');
+      p.style.background = i%2===0 ? '#C0292A' : '#fff';
+      wrap.appendChild(p);
+      setTimeout(() => p.classList.add('go'), 10);
+      setTimeout(() => p.remove(), 650);
+    }
+  }
+
+  function doCheckin() {
+    if (checkedIn) return;
+    checkedIn = true; streak++;
+    const flame = document.getElementById('flameIcon');
+    const burst = document.getElementById('burstRing');
+    const btn = document.getElementById('btn');
+    flame.classList.add('fast');
+    burst.classList.remove('go'); void burst.offsetWidth; burst.classList.add('go');
+    spawnParticles();
+    document.getElementById('streakNum').textContent = streak;
+    document.getElementById('msg').textContent = msgs[streak % msgs.length];
+    btn.textContent = '✓ Checked in'; btn.disabled = true;
+    buildDots(); buildMs(); setTimeout(updateBar, 100);
+    setTimeout(() => flame.classList.remove('fast'), 1500);
+    window.parent.postMessage({ type: 'DEEPFIT_CHECKIN', streak }, '*');
+  }
+
+  window.addEventListener('message', e => {
+    if (e.data?.type === 'DEEPFIT_INIT') {
+      streak = e.data.streak || 0; checkedIn = e.data.checkedIn || false;
+      document.getElementById('streakNum').textContent = streak;
+      document.getElementById('msg').textContent = msgs[Math.min(streak, msgs.length-1)];
+      if (checkedIn) {
+        document.getElementById('btn').textContent = '✓ Checked in';
+        document.getElementById('btn').disabled = true;
+      }
+      buildDots(); buildMs(); setTimeout(updateBar, 100);
+    }
+  });
+
+  document.getElementById('streakNum').textContent = streak;
+  buildDots(); buildMs(); setTimeout(updateBar, 300);
+</script>
+</body>
+</html>
