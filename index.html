@@ -139,10 +139,37 @@
   }
   .checkin-btn:hover { opacity: 0.85; transform: scale(0.99); }
   .checkin-btn:disabled { background: #222; color: #444; cursor: default; transform: none; }
+
+  /* Loading state */
+  .loading {
+    position: absolute; inset: 0;
+    background: #111;
+    display: flex; align-items: center; justify-content: center;
+    z-index: 10;
+    border-radius: 16px;
+  }
+  .loading-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: #C0292A; margin: 0 3px;
+    animation: loadPulse 1s ease-in-out infinite;
+  }
+  .loading-dot:nth-child(2) { animation-delay: 0.2s; }
+  .loading-dot:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes loadPulse {
+    0%,100% { opacity: 0.2; transform: scale(0.8); }
+    50% { opacity: 1; transform: scale(1.2); }
+  }
 </style>
 </head>
 <body>
 <div class="df">
+  <!-- Loading overlay shown until streak data arrives -->
+  <div class="loading" id="loadingOverlay">
+    <div class="loading-dot"></div>
+    <div class="loading-dot"></div>
+    <div class="loading-dot"></div>
+  </div>
+
   <div class="top-row">
     <span class="brand">DEEPFIT</span>
     <div class="streak-badge">
@@ -164,29 +191,16 @@
         </div>
         <div class="bar-bg"><div class="bar-fill" id="barFill" style="width:0%"></div></div>
       </div>
-      <p class="msg" id="msg">Log in every day to build your streak.</p>
+      <p class="msg" id="msg">Loading your streak...</p>
     </div>
   </div>
   <div class="bottom">
     <div class="milestone-row" id="msRow"></div>
-    <button class="checkin-btn" id="btn" onclick="doCheckin()">Check in today</button>
+    <button class="checkin-btn" id="btn" onclick="doCheckin()" disabled>Loading...</button>
   </div>
 </div>
 
 <script>
-  // Retry sending IFRAME_READY until Wix responds
-let initReceived = false;
-function sendReady() {
-  if (!initReceived) {
-    window.parent.postMessage({ type: 'IFRAME_READY' }, '*');
-    setTimeout(sendReady, 500);
-  }
-}
-sendReady();
-
-  const params = new URLSearchParams(window.location.search);
-  let streak = parseInt(params.get('streak') || '0', 10);
-  let checkedIn = params.get('checkedIn') === 'true';
   const milestones = [7, 14, 30, 60];
   const msgs = [
     "Log in every day to build your streak.",
@@ -196,6 +210,11 @@ sendReady();
     "Beast mode: activated. 💪",
     "You're on fire — keep showing up."
   ];
+
+  let streak = 0;
+  let checkedIn = false;
+  let initReceived = false;
+  let readyInterval = null;
 
   function getNext() { return milestones.find(m => m > streak) || milestones[milestones.length-1]; }
 
@@ -231,6 +250,24 @@ sendReady();
     document.getElementById('nextLabel').textContent = next + '-day goal';
   }
 
+  function renderUI() {
+    document.getElementById('streakNum').textContent = streak;
+    document.getElementById('msg').textContent = msgs[Math.min(streak, msgs.length - 1)];
+    const btn = document.getElementById('btn');
+    if (checkedIn) {
+      btn.textContent = '✓ Checked in';
+      btn.disabled = true;
+    } else {
+      btn.textContent = 'Check in today';
+      btn.disabled = false;
+    }
+    buildDots();
+    buildMs();
+    setTimeout(updateBar, 100);
+    // Hide loading overlay
+    document.getElementById('loadingOverlay').style.display = 'none';
+  }
+
   function spawnParticles() {
     const wrap = document.getElementById('flameWrap');
     for (let i = 0; i < 8; i++) {
@@ -250,34 +287,47 @@ sendReady();
     checkedIn = true; streak++;
     const flame = document.getElementById('flameIcon');
     const burst = document.getElementById('burstRing');
-    const btn = document.getElementById('btn');
     flame.classList.add('fast');
     burst.classList.remove('go'); void burst.offsetWidth; burst.classList.add('go');
     spawnParticles();
-    document.getElementById('streakNum').textContent = streak;
-    document.getElementById('msg').textContent = msgs[streak % msgs.length];
-    btn.textContent = '✓ Checked in'; btn.disabled = true;
-    buildDots(); buildMs(); setTimeout(updateBar, 100);
+    renderUI();
     setTimeout(() => flame.classList.remove('fast'), 1500);
-    window.parent.postMessage({ type: 'DEEPFIT_CHECKIN', streak }, '*');
+    window.parent.postMessage({ type: 'DEEPFIT_CHECKIN', streak: streak }, '*');
   }
 
-  window.addEventListener('message', e => {
-    if (e.data?.type === 'DEEPFIT_INIT') {
-     initReceived = true; 
-     streak = e.data.streak || 0; checkedIn = e.data.checkedIn || false;
-      document.getElementById('streakNum').textContent = streak;
-      document.getElementById('msg').textContent = msgs[Math.min(streak, msgs.length-1)];
-      if (checkedIn) {
-        document.getElementById('btn').textContent = '✓ Checked in';
-        document.getElementById('btn').disabled = true;
-      }
-      buildDots(); buildMs(); setTimeout(updateBar, 100);
+  // Listen for streak data from Wix
+  window.addEventListener('message', function(e) {
+    if (e.data && e.data.type === 'DEEPFIT_INIT') {
+      // Stop retrying
+      if (readyInterval) { clearInterval(readyInterval); readyInterval = null; }
+      initReceived = true;
+      streak = e.data.streak || 0;
+      checkedIn = e.data.checkedIn || false;
+      renderUI();
     }
   });
 
-  document.getElementById('streakNum').textContent = streak;
-  buildDots(); buildMs(); setTimeout(updateBar, 300);
+  // Keep pinging Wix every 300ms until DEEPFIT_INIT is received
+  readyInterval = setInterval(function() {
+    if (!initReceived) {
+      window.parent.postMessage({ type: 'IFRAME_READY' }, '*');
+    } else {
+      clearInterval(readyInterval);
+    }
+  }, 300);
+
+  // Also send immediately on load
+  window.parent.postMessage({ type: 'IFRAME_READY' }, '*');
+
+  // Fallback — if Wix never responds after 5 seconds, show default UI
+  setTimeout(function() {
+    if (!initReceived) {
+      if (readyInterval) { clearInterval(readyInterval); readyInterval = null; }
+      streak = 0; checkedIn = false;
+      document.getElementById('msg').textContent = msgs[0];
+      renderUI();
+    }
+  }, 5000);
 </script>
 </body>
 </html>
