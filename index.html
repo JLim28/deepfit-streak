@@ -292,7 +292,7 @@
     spawnParticles();
     renderUI();
     setTimeout(() => flame.classList.remove('fast'), 1500);
-    window.parent.postMessage({ type: 'DEEPFIT_CHECKIN', streak: streak }, '*');
+    window.location.href = 'https://www.miraimalaysia.com/streak-save?userId=' + getUserId() + '&streak=' + streak;
   }
 
   // Listen for streak data from Wix
