@@ -174,7 +174,15 @@
 </div>
 
 <script>
-  window.parent.postMessage({ type: 'IFRAME_READY' }, '*');
+  // Retry sending IFRAME_READY until Wix responds
+let initReceived = false;
+function sendReady() {
+  if (!initReceived) {
+    window.parent.postMessage({ type: 'IFRAME_READY' }, '*');
+    setTimeout(sendReady, 500);
+  }
+}
+sendReady();
 
   const params = new URLSearchParams(window.location.search);
   let streak = parseInt(params.get('streak') || '0', 10);
@@ -256,7 +264,8 @@
 
   window.addEventListener('message', e => {
     if (e.data?.type === 'DEEPFIT_INIT') {
-      streak = e.data.streak || 0; checkedIn = e.data.checkedIn || false;
+     initReceived = true; 
+     streak = e.data.streak || 0; checkedIn = e.data.checkedIn || false;
       document.getElementById('streakNum').textContent = streak;
       document.getElementById('msg').textContent = msgs[Math.min(streak, msgs.length-1)];
       if (checkedIn) {
